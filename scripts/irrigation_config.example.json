@@ -1,0 +1,12 @@
+{
+  "base_minutes": 20,
+  "flow_gpm": 8.0,
+  "efficiency": 0.80,
+  "zone_area_sqft": 1000,
+  "watering_window_start_hour": 22,
+  "watering_window_end_hour": 6,
+  "rain_prob_skip_pct": 50,
+  "rain_prob_reduce_pct": 30,
+  "tomorrow_precip_skip_mm": 2.0,
+  "notes": "Measure flow with bucket test; 3/4 inch meter often supports ~8 GPM per zone at 75% design capacity."
+}
