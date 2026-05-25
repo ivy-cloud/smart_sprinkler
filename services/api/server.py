@@ -15,7 +15,7 @@ Endpoints:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from services.irrigation import (
     analyze_soil_api,
@@ -34,9 +34,9 @@ except ImportError as exc:
 
 
 class LocationBody(BaseModel):
-    city: str | None = None
-    lat: float | None = None
-    lon: float | None = None
+    city: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
 
 
 class ScheduleParams(BaseModel):
@@ -51,13 +51,13 @@ class WeatherRequest(LocationBody, ScheduleParams):
 
 
 class SoilSensorBody(BaseModel):
-    voltage: float | None = None
-    current: float | None = None
-    flow_rate_l_min: float | None = Field(default=None, alias="flowRate")
-    water_level_pct: float | None = Field(default=None, alias="waterLevel")
-    soil_temp_c: float | None = Field(default=None, alias="soilTemp")
-    humidity_pct: float | None = Field(default=None, alias="humidity")
-    csv_line: str | None = Field(
+    voltage: Optional[float] = None
+    current: Optional[float] = None
+    flow_rate_l_min: Optional[float] = Field(default=None, alias="flowRate")
+    water_level_pct: Optional[float] = Field(default=None, alias="waterLevel")
+    soil_temp_c: Optional[float] = Field(default=None, alias="soilTemp")
+    humidity_pct: Optional[float] = Field(default=None, alias="humidity")
+    csv_line: Optional[str] = Field(
         default=None,
         description="Alternative: 'voltage,current,flow,level,temp,humidity'",
     )
@@ -83,7 +83,7 @@ app = FastAPI(
 )
 
 
-def _sensor_payload(body: SoilSensorBody) -> dict[str, Any] | str:
+def _sensor_payload(body: SoilSensorBody) -> Any:
     if body.csv_line:
         return body.csv_line.strip()
     data = body.model_dump(by_alias=False, exclude={"csv_line"})

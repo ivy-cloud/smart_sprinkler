@@ -10,6 +10,10 @@ HTTP API for irrigation decisions (weather + soil + merged).
 from __future__ import annotations
 
 import argparse
+import sys
+
+if sys.version_info < (3, 9):
+    raise SystemExit("Python 3.9 or newer is required.")
 
 import _bootstrap  # noqa: F401
 

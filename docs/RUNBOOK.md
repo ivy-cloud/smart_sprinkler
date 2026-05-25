@@ -23,11 +23,15 @@ Exact CLI commands that produce an **irrigation decision** (sprinkler ON/OFF, du
 ```bash
 cd /path/to/smart_sprinkler
 
-# API + irrigation services
-pip install -r requirements.txt
+# API + irrigation services (use python3 -m pip if plain pip is not found)
+python3 -m pip install -r requirements.txt
+```
 
+**Python version:** 3.10+ recommended. On **3.9**, `requirements.txt` includes `eval_type_backport` for Pydantic. If the API still fails, upgrade Python (`brew install python@3.12`).
+
+```bash
 # Optional ML (binary + regression)
-pip install -r ml/requirements.txt
+python3 -m pip install -r ml/requirements.txt
 python3 scripts/train_ml_models.py
 ```
 

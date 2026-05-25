@@ -1,5 +1,8 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
+# Pydantic on Python 3.9 needs this if you see "Unable to evaluate type annotation str | None"
+eval_type_backport>=0.2.0; python_version < "3.10"
 
-# Optional ML integration (services/irrigation/ml_inference.py)
-# pip install -r ml/requirements.txt
+# Python 3.10+ recommended. 3.9 supported for CLI; API models use typing.Optional.
+
+# Optional ML: pip install -r ml/requirements.txt
