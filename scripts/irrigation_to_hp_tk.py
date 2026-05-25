@@ -38,7 +38,9 @@ def send_angle(port: str, angle: int, *, baud: int = 115200) -> None:
         raise SystemExit("Install pyserial: python3 -m pip install pyserial") from exc
 
     line = f"{angle}\n".encode("ascii")
-    with serial.Serial(port, baud, timeout=2) as ser:
+    with serial.Serial(
+        port, baud, timeout=2, dsrdtr=False, rtscts=False
+    ) as ser:
         ser.write(line)
         ser.flush()
     print(f"Sent angle {angle} to {port} ({baud} baud)")
@@ -55,7 +57,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Irrigation decision -> serial angle for hp_tk_tx -> BLE -> hp_tk_rx"
     )
-    parser.add_argument("--csv", required=True, help="Sensor line from heli_tx / STM32")
+    parser.add_argument(
+        "--csv",
+        help="Sensor line from heli_tx / STM32 (required except with --list-ports)",
+    )
     parser.add_argument("--city")
     parser.add_argument("--lat", type=float)
     parser.add_argument("--lon", type=float)
@@ -86,6 +91,9 @@ def main() -> int:
         for device in list_serial_ports():
             print(device)
         return 0
+
+    if not args.csv:
+        parser.error("--csv is required (omit only when using --list-ports)")
 
     if args.angle_on < 1 or args.angle_on > 180:
         print("Error: --angle-on must be 1-180", file=sys.stderr)

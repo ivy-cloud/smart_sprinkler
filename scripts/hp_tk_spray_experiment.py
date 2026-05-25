@@ -34,16 +34,55 @@ def list_serial_ports() -> list[str]:
     return [p.device for p in list_ports.comports()]
 
 
-def send_angle(port: str, angle: int, *, baud: int = 115200) -> None:
+def _import_serial():
     try:
         import serial
     except ImportError as exc:
         raise SystemExit("Install pyserial: python3 -m pip install pyserial") from exc
+    return serial
+
+
+def open_hp_tk_serial(port: str, *, baud: int = 115200):
+    """Open tx USB once; dsrdtr=False avoids resetting ESP32 on macOS."""
+    serial = _import_serial()
+    try:
+        return serial.Serial(
+            port,
+            baud,
+            timeout=2,
+            dsrdtr=False,
+            rtscts=False,
+        )
+    except serial.SerialException as exc:
+        err = str(exc).lower()
+        errno = getattr(exc, "errno", None)
+        if errno == 16 or "busy" in err:
+            raise SystemExit(
+                f"Cannot open {port}: port is busy.\n"
+                "Close Arduino Serial Monitor, Cursor/VS Code serial terminals, "
+                "screen/minicom, or any other app using this USB port, then retry."
+            ) from exc
+        if errno == 2 or "no such file" in err:
+            found = ", ".join(list_serial_ports()) or "(none — is hp_tk_tx USB plugged in?)"
+            raise SystemExit(
+                f"Cannot open {port}: port not found.\n"
+                "macOS often changes usbserial numbers after unplug/replug.\n"
+                f"Current ports: {found}\n"
+                "Plug USB into hp_tk_tx (ESP32A), run: python3 scripts/hp_tk_spray_experiment.py --list-ports"
+            ) from exc
+        raise
+
+
+def write_angle(ser, angle: int) -> None:
     if not 0 <= angle <= 180:
         raise ValueError(f"angle must be 0-180, got {angle}")
-    with serial.Serial(port, baud, timeout=2) as ser:
-        ser.write(f"{angle}\n".encode("ascii"))
-        ser.flush()
+    ser.write(f"{angle}\n".encode("ascii"))
+    ser.flush()
+
+
+def send_angle(port: str, angle: int, *, baud: int = 115200) -> None:
+    with open_hp_tk_serial(port, baud=baud) as ser:
+        write_angle(ser, angle)
 
 
 def duration_mapping(
@@ -140,7 +179,8 @@ def run_experiment(
         if dry_run:
             print("[dry-run] Would send: 0")
         elif port:
-            send_angle(port, 0, baud=baud)
+            with open_hp_tk_serial(port, baud=baud) as ser:
+                write_angle(ser, 0)
             print("Sent: 0")
         return 0
 
@@ -150,33 +190,44 @@ def run_experiment(
         ("end", 0, settle_s, "Stop again"),
     ]
 
-    for name, angle, wait_s, note in phases:
-        print(f"\n--- {name}: angle {angle} ({note}) ---")
-        if name == "spray" and production_seconds > wait_s:
-            print(
-                f"    (lab wait {wait_s:.1f} s; production decision is {production_seconds:.0f} s)"
-            )
-        if dry_run:
-            print(f"[dry-run] Would send: {angle}, wait {wait_s:.1f} s")
-        else:
-            if not port:
-                print("Error: --port required", file=sys.stderr)
-                return 1
-            send_angle(port, angle, baud=baud)
-            print(f"Sent: {angle}")
-            if wait_s > 0:
-                time.sleep(wait_s)
-                print(f"Waited {wait_s:.1f} s")
+    def run_phases(ser=None) -> int:
+        for name, angle, wait_s, note in phases:
+            print(f"\n--- {name}: angle {angle} ({note}) ---")
+            if name == "spray" and production_seconds > wait_s:
+                print(
+                    f"    (lab wait {wait_s:.1f} s; production decision is {production_seconds:.0f} s)"
+                )
+            if dry_run:
+                print(f"[dry-run] Would send: {angle}, wait {wait_s:.1f} s")
+            else:
+                if ser is None:
+                    print("Error: --port required", file=sys.stderr)
+                    return 1
+                write_angle(ser, angle)
+                print(f"Sent: {angle}")
+                if wait_s > 0:
+                    time.sleep(wait_s)
+                    print(f"Waited {wait_s:.1f} s")
+        return 0
 
+    if dry_run:
+        return run_phases()
+
+    if not port:
+        print("Error: --port required", file=sys.stderr)
+        return 1
+
+    with open_hp_tk_serial(port, baud=baud) as ser:
+        rc = run_phases(ser)
     print("\nExperiment complete.")
-    return 0
+    return rc
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Timed spray demo: 0 -> angle -> wait (1-10s) -> 0"
     )
-    parser.add_argument("--csv", required=True, help="Sensor CSV from heli_tx")
+    parser.add_argument("--csv", help="Sensor CSV from heli_tx (required except with --list-ports)")
     parser.add_argument("--city")
     parser.add_argument("--lat", type=float)
     parser.add_argument("--lon", type=float)
@@ -202,6 +253,9 @@ def main() -> int:
         for d in list_serial_ports():
             print(d)
         return 0
+
+    if not args.csv:
+        parser.error("--csv is required (omit only when using --list-ports)")
 
     if not 1 <= args.angle <= 180:
         print("Error: --angle must be 1-180 when spraying", file=sys.stderr)
