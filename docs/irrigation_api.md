@@ -5,22 +5,26 @@ Weather forecast and soil sensors are **two inputs**; the **final ON/OFF + durat
 ## Architecture
 
 ```text
-                    ┌─────────────────────┐
-  Open-Meteo ──────►│  weather.py         │
-                    │  decide_weather()   │──► WeatherDecision
-                    └─────────────────────┘
-                              │
-  STM32 / heli CSV ─►┌─────────────────────┐
-                     │  soil.py            │
-                     │  analyze_soil()     │──► SoilDecision
-                     └─────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │  merge.py           │
-                    │  merge_decisions()  │──► FinalIrrigationDecision
-                    └─────────────────────┘
+  Open-Meteo (humidity, rain, ET0, VPD)
+         │
+         ▼
+  services/weather/client.py
+         │
+         ├──────────────────────────────┐
+         ▼                              ▼
+  irrigation/weather.py          ml_inference.py (optional)
+  decide_weather()                      │ binary + regression
+         │                              │
+         ▼                              ▼
+  WeatherDecision              MlSoilInsights (days ahead, boost/skip)
+         │                              │
+  heli CSV ──► irrigation/soil.py ◄─────┘
+         │
+         ▼
+  merge.py ──► FinalIrrigationDecision (+ days_to_next_watering, ml {})
 ```
+
+**ML weights:** train with `python3 scripts/train_ml_models.py` (artifacts gitignored). Without weights, rules still run; API notes explain missing models.
 
 ### Merge rules (v1)
 
@@ -31,6 +35,14 @@ Weather forecast and soil sensors are **two inputs**; the **final ON/OFF + durat
 | 3 | Soil adequate, weather OK | **OFF** |
 | 4 | Both need water | `duration = min(weather, soil)` minutes |
 | 5 | Soil critically dry (≤ 20%) | Allow **minimum 8 min** even if weather suggested soft skip |
+
+### ML blend (when `use_ml=true` and artifacts exist)
+
+| Signal | Effect |
+|--------|--------|
+| Binary: high P(watered) | Skip today if soil not critically dry |
+| Binary: high P(needs water) | Boost ON + minimum run if rules were borderline |
+| Regression: days until next | Reported on final JSON; notes when rules agree to skip |
 
 ---
 
@@ -47,8 +59,8 @@ from services.irrigation import get_final_decision_api, analyze_soil_api, get_we
 # Weather only
 weather = get_weather_decision_api(city="San Jose")
 
-# Soil only (matches heli_tx CSV line)
-soil = analyze_soil_api("12.1,0.4,0.0,28.0,22.5,41.0")
+# Soil + ML (pass city for regression ET0/VPD)
+soil = analyze_soil_api("12.1,0.4,0.0,28.0,22.5,41.0", city="San Jose")
 
 # Combined final decision
 final = get_final_decision_api(

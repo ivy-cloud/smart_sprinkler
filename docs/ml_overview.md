@@ -125,11 +125,15 @@ Thousands of labeled frames live under `smart_sprinkler_docs/code/Video_Segmenta
 ## How the three pieces work together
 
 ```text
-  Camera ──► YOLO grass mask ──────────────► nozzle aim
+  Camera ──► YOLO grass mask ──────────────► nozzle aim (not wired yet)
   STM32 CSV ──► binary MLP ──► need water today? ──┐
-  Open-Meteo ──► regression MLP ──► days until next ─┼──► services/irrigation/merge
+  Open-Meteo ──► regression MLP ──► days until next ─┼──► services/irrigation/merge (wired)
   Rules (rain, thresholds) ──────────────────────────┘
 ```
+
+**Integration module:** `services/irrigation/ml_inference.py` — called from `soil.py` and `merge.py` when `use_ml=True`.
+
+**Train once:** `python3 scripts/train_ml_models.py` then use `analyze_soil.py` or `/v1/irrigation/decision` as usual.
 
 ---
 

@@ -38,10 +38,13 @@ class Place:
 class HourForecast:
     time: str
     humidity_pct: float | None
+    temperature_c: float | None
     precip_mm: float | None
     precip_probability_pct: float | None
     weather_code: int | None
     is_rain_code: bool
+    et0_mm: float | None = None
+    vpd_kpa: float | None = None
 
     @property
     def rain_likely(self) -> bool:
@@ -155,7 +158,10 @@ def fetch_forecast_raw(
                 "precipitation",
                 "precipitation_probability",
                 "relative_humidity_2m",
+                "temperature_2m",
                 "weather_code",
+                "et0_fao_evapotranspiration",
+                "vapour_pressure_deficit",
             ]
         ),
         "forecast_days": forecast_days,
@@ -169,9 +175,12 @@ def parse_hourly(data: dict[str, Any], max_hours: int | None = None) -> list[Hou
     hourly = data.get("hourly") or {}
     times = hourly.get("time") or []
     humidities = hourly.get("relative_humidity_2m") or []
+    temps = hourly.get("temperature_2m") or []
     precip = hourly.get("precipitation") or []
     precip_prob = hourly.get("precipitation_probability") or []
     codes = hourly.get("weather_code") or []
+    et0 = hourly.get("et0_fao_evapotranspiration") or []
+    vpd = hourly.get("vapour_pressure_deficit") or []
 
     limit = len(times) if max_hours is None else min(max_hours, len(times))
     rows: list[HourForecast] = []
@@ -181,10 +190,13 @@ def parse_hourly(data: dict[str, Any], max_hours: int | None = None) -> list[Hou
             HourForecast(
                 time=times[i],
                 humidity_pct=humidities[i] if i < len(humidities) else None,
+                temperature_c=temps[i] if i < len(temps) else None,
                 precip_mm=precip[i] if i < len(precip) else None,
                 precip_probability_pct=precip_prob[i] if i < len(precip_prob) else None,
                 weather_code=code,
                 is_rain_code=code in RAIN_WEATHER_CODES if code is not None else False,
+                et0_mm=et0[i] if i < len(et0) else None,
+                vpd_kpa=vpd[i] if i < len(vpd) else None,
             )
         )
     return rows
@@ -206,11 +218,17 @@ def load_forecast(
     )
 
 
+def _avg(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 3) if values else None
+
+
 def _summarize_rows(rows: list[HourForecast]) -> dict[str, Any]:
     humid = [r.humidity_pct for r in rows if r.humidity_pct is not None]
     precip = [r.precip_mm or 0.0 for r in rows]
     precip_prob = [r.precip_probability_pct or 0 for r in rows]
     rain_hours = [r for r in rows if r.rain_likely]
+    et0_vals = [r.et0_mm for r in rows if r.et0_mm is not None]
+    vpd_vals = [r.vpd_kpa for r in rows if r.vpd_kpa is not None]
 
     avg_h = sum(humid) / len(humid) if humid else None
 
@@ -222,6 +240,11 @@ def _summarize_rows(rows: list[HourForecast]) -> dict[str, Any]:
         "humidity_avg_pct": round(avg_h, 1) if avg_h is not None else None,
         "humidity_min_pct": min(humid) if humid else None,
         "humidity_max_pct": max(humid) if humid else None,
+        "et0_avg_mm": _avg(et0_vals),
+        "et0_max_mm": round(max(et0_vals), 3) if et0_vals else None,
+        "vpd_avg_kpa": _avg(vpd_vals),
+        "vpd_max_kpa": round(max(vpd_vals), 3) if vpd_vals else None,
+        "rain_recent": bool(sum(precip) >= 1.0 or len(rain_hours) >= 2),
     }
 
 
@@ -255,6 +278,9 @@ def forecast_to_dict(forecast: WeatherForecast, hours: int = 24) -> dict[str, An
             {
                 "time": r.time,
                 "humidity_pct": r.humidity_pct,
+                "temperature_c": r.temperature_c,
+                "et0_mm": r.et0_mm,
+                "vpd_kpa": r.vpd_kpa,
                 "precipitation_mm": r.precip_mm,
                 "precipitation_probability_pct": r.precip_probability_pct,
                 "weather_code": r.weather_code,

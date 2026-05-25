@@ -25,10 +25,24 @@ python3 ml/soil/binary/infer.py --humidity 6.6 --temp 20.7 --salinity 71 --condu
 python3 ml/soil/regression/infer.py --humidity 18 --temp 28.5 --salinity 120 --ec 650 --rain 0 --et0 6 --vpd 2.2
 ```
 
-## Wiring into irrigation (future)
+## Integrated with irrigation (active)
 
-- Map `heli_tx` CSV fields → MLP inputs (humidity %, soil temp °C; salinity/EC if added on STM32).
-- Pull `rain`, `et0`, `vpd` from Open-Meteo in `services/weather/` for the regression model.
-- Run segmentation on camera frames → dry-grass mask → servo angle hints in `firmware/actuator/`.
+`services/irrigation/ml_inference.py` loads artifacts from `ml/soil/*/artifacts/` when present:
 
-See [docs/ml_overview.md](../docs/ml_overview.md) for a full walkthrough of each script.
+- **Binary MLP** — can skip or boost watering in `analyze_soil()` (merged with rule thresholds).
+- **Regression MLP** — `days_to_next_watering` on final API/CLI output; uses **ET₀ / VPD / rain** from `services/weather/`.
+
+Train weights once:
+
+```bash
+pip install -r ml/requirements.txt
+python3 scripts/train_ml_models.py
+```
+
+Then:
+
+```bash
+python3 scripts/analyze_soil.py --csv "12.1,0.4,0.0,28,22.5,41" --city "San Jose"
+```
+
+Use `--no-ml` for rules-only. See [docs/ml_overview.md](../docs/ml_overview.md).

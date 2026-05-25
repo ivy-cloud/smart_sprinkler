@@ -65,19 +65,21 @@ class SoilSensorBody(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class SoilRequest(BaseModel):
+class SoilRequest(LocationBody):
     sensor: SoilSensorBody
     base_minutes: float = 20
+    use_ml: bool = True
 
 
 class FinalDecisionRequest(LocationBody, ScheduleParams):
     sensor: SoilSensorBody
+    use_ml: bool = True
 
 
 app = FastAPI(
     title="Smart Sprinkler Irrigation API",
     version="1.0.0",
-    description="Weather + soil merged irrigation ON/OFF and duration.",
+    description="Weather + soil merged irrigation ON/OFF and duration (optional ML blend).",
 )
 
 
@@ -119,6 +121,10 @@ def soil_analyze(req: SoilRequest) -> dict[str, Any]:
         return analyze_soil_api(
             _sensor_payload(req.sensor),
             base_minutes=req.base_minutes,
+            city=req.city,
+            lat=req.lat,
+            lon=req.lon,
+            use_ml=req.use_ml,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -136,6 +142,7 @@ def irrigation_decision(req: FinalDecisionRequest) -> dict[str, Any]:
             flow_gpm=req.flow_gpm,
             efficiency=req.efficiency,
             zone_area_sqft=req.zone_area_sqft,
+            use_ml=req.use_ml,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

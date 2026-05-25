@@ -16,6 +16,8 @@ class SoilReading:
     water_level_pct: float | None = None
     soil_temp_c: float | None = None
     humidity_pct: float | None = None
+    salinity_uS_cm: float | None = None
+    conductivity_uS_cm: float | None = None
 
     @classmethod
     def from_csv_line(cls, line: str) -> "SoilReading":
@@ -45,6 +47,8 @@ class SoilReading:
             "water_level_pct": ("water_level_pct", "waterLevel", "water_level"),
             "soil_temp_c": ("soil_temp_c", "soilTemp", "soil_temp"),
             "humidity_pct": ("humidity_pct", "humidity"),
+            "salinity_uS_cm": ("salinity_uS_cm", "salinity"),
+            "conductivity_uS_cm": ("conductivity_uS_cm", "conductivity", "ec"),
         }
 
         def pick(*keys: str) -> float | None:
@@ -60,6 +64,8 @@ class SoilReading:
             water_level_pct=pick(*aliases["water_level_pct"]),
             soil_temp_c=pick(*aliases["soil_temp_c"]),
             humidity_pct=pick(*aliases["humidity_pct"]),
+            salinity_uS_cm=pick(*aliases["salinity_uS_cm"]),
+            conductivity_uS_cm=pick(*aliases["conductivity_uS_cm"]),
         )
 
 
@@ -97,6 +103,9 @@ class SoilDecision:
     skip_reason: str | None = None
     notes: list[str] = field(default_factory=list)
     reading: SoilReading | None = None
+    ml_prob_needs_water: float | None = None
+    ml_prob_watered: float | None = None
+    ml_used: bool = False
 
 
 @dataclass
@@ -113,6 +122,8 @@ class FinalIrrigationDecision:
     notes: list[str] = field(default_factory=list)
     weather: WeatherDecision | None = None
     soil: SoilDecision | None = None
+    days_to_next_watering: float | None = None
+    ml: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -126,6 +137,8 @@ class FinalIrrigationDecision:
             "decision_source": self.decision_source,
             "skip_reason": self.skip_reason,
             "notes": self.notes,
+            "days_to_next_watering": self.days_to_next_watering,
+            "ml": self.ml,
             "weather": asdict(self.weather) if self.weather else None,
             "soil": asdict(self.soil) if self.soil else None,
         }

@@ -45,12 +45,13 @@ def predict(
     with torch.no_grad():
         logits = model(torch.tensor(x))
         prob_watered = torch.softmax(logits, dim=1)[0, 1].item()
-    pred = int(prob_watered >= threshold)
+    prob_needs = 1.0 - prob_watered
     return {
         "prob_watered": round(prob_watered, 4),
-        "pred_label": pred,
-        "needs_watering": pred == 1,
-        "features": dict(zip(FEATURES, x[0].tolist())),
+        "prob_needs_water": round(prob_needs, 4),
+        "pred_already_watered": int(prob_watered >= threshold),
+        "needs_watering": prob_needs >= threshold,
+        "features": dict(zip(FEATURES, [humidity_pct, temperature_c, salinity_uS_cm, conductivity_uS_cm])),
     }
 
 

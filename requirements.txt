@@ -1,2 +1,5 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
+
+# Optional ML integration (services/irrigation/ml_inference.py)
+# pip install -r ml/requirements.txt

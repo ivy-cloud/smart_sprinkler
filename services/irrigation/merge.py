@@ -1,8 +1,11 @@
-"""Merge weather forecast decision with live soil sensor analysis."""
+"""Merge weather forecast decision with live soil sensor analysis (+ ML hints)."""
 
 from __future__ import annotations
 
+from typing import Any
+
 from .config import SOIL_CRITICAL_WATER_LEVEL_PCT, SOIL_MIN_RUN_MINUTES
+from .ml_inference import MlSoilInsights
 from .soil import analyze_soil
 from .types import FinalIrrigationDecision, SoilDecision, SoilReading, WeatherDecision, duration_label
 from .weather import get_weather_decision
@@ -10,13 +13,20 @@ from .weather import get_weather_decision
 from services.weather.client import Place, WeatherForecast
 
 
+def _ml_payload(insights: MlSoilInsights | None) -> dict[str, Any] | None:
+    from .ml_inference import ml_insights_to_dict
+
+    return ml_insights_to_dict(insights)
+
+
 def merge_decisions(
     weather: WeatherDecision,
     soil: SoilDecision,
     *,
     flow_gpm: float | None = None,
+    ml_insights: MlSoilInsights | None = None,
 ) -> FinalIrrigationDecision:
-    """Combine weather cap/skip rules with soil need."""
+    """Combine weather cap/skip rules with soil need and ML scheduling hints."""
     flow = flow_gpm if flow_gpm is not None else weather.flow_gpm
     notes: list[str] = list(weather.notes) + list(soil.notes)
     skip_reason: str | None = None
@@ -29,17 +39,16 @@ def merge_decisions(
         and soil.reading.water_level_pct <= SOIL_CRITICAL_WATER_LEVEL_PCT
     )
 
-    # Hard OFF: rain forecast (soil cannot override)
+    days_next = ml_insights.days_to_next_watering if ml_insights else None
+
     if rain_hard:
         skip_reason = weather.skip_reason
         decision_source = "weather_rain_skip"
         mins = 0
-    # Hard OFF: soil already wet
     elif soil.skip_reason:
         skip_reason = soil.skip_reason
-        decision_source = "soil_skip"
+        decision_source = "soil_skip" if "ML" not in (soil.skip_reason or "") else "ml_soil_skip"
         mins = 0
-    # Hard OFF: weather soft skip and soil not critical
     elif weather.skip_reason and not soil_critical:
         skip_reason = weather.skip_reason
         decision_source = "weather_skip"
@@ -55,10 +64,16 @@ def merge_decisions(
             skip_reason = "Soil moisture adequate; no irrigation needed."
             decision_source = "soil_no_need"
             mins = 0
+            if days_next is not None and days_next >= 2.0:
+                notes.append(
+                    f"ML regression: next watering in ~{days_next:.1f} days (rules agree: skip today)."
+                )
         else:
             if weather.sprinkler_on and soil.sprinkler_on:
                 mins = min(weather.duration_minutes, soil.duration_minutes)
                 decision_source = "merged_min"
+                if soil.ml_used:
+                    decision_source = "merged_min_ml"
                 notes.append(
                     f"Duration = min(weather {weather.duration_minutes}, "
                     f"soil {soil.duration_minutes}) minutes."
@@ -66,6 +81,8 @@ def merge_decisions(
             elif soil.sprinkler_on:
                 mins = soil.duration_minutes
                 decision_source = "soil_primary"
+                if soil.ml_used:
+                    decision_source = "soil_primary_ml"
             elif weather.sprinkler_on:
                 mins = weather.duration_minutes
                 decision_source = "weather_primary"
@@ -77,6 +94,18 @@ def merge_decisions(
             if soil_critical and mins > 0:
                 mins = max(mins, SOIL_MIN_RUN_MINUTES)
 
+            if (
+                days_next is not None
+                and days_next >= 3.0
+                and mins > 0
+                and not soil_critical
+                and soil.moisture_band in {"moist", "moderate"}
+            ):
+                notes.append(
+                    f"ML regression suggests waiting ~{days_next:.1f} days; "
+                    "rules still allow a shorter run today."
+                )
+
     mins = max(0, int(mins))
     sprinkler_on = mins > 0 and skip_reason is None
     mins_s, secs, label = duration_label(mins)
@@ -86,6 +115,11 @@ def merge_decisions(
         depth = round(weather.estimated_depth_mm * (mins_s / weather.duration_minutes), 2)
     elif not sprinkler_on:
         depth = 0.0
+
+    if days_next is not None and sprinkler_on:
+        notes.append(
+            f"After today's run, ML estimates next watering in ~{days_next:.1f} days."
+        )
 
     return FinalIrrigationDecision(
         sprinkler_on=sprinkler_on,
@@ -100,6 +134,8 @@ def merge_decisions(
         notes=notes,
         weather=weather,
         soil=soil,
+        days_to_next_watering=days_next,
+        ml=_ml_payload(ml_insights),
     )
 
 
@@ -114,6 +150,7 @@ def get_final_decision(
     flow_gpm: float = 8.0,
     efficiency: float = 0.8,
     zone_area_sqft: float = 1000,
+    use_ml: bool = True,
 ) -> tuple[WeatherForecast, WeatherDecision, SoilDecision, FinalIrrigationDecision]:
     if isinstance(soil, str):
         soil_reading = SoilReading.from_csv_line(soil)
@@ -132,6 +169,13 @@ def get_final_decision(
         efficiency=efficiency,
         zone_area_sqft=zone_area_sqft,
     )
-    soil_decision = analyze_soil(soil_reading, base_minutes=base_minutes)
-    final = merge_decisions(weather, soil_decision, flow_gpm=flow_gpm)
+    soil_decision, ml_insights = analyze_soil(
+        soil_reading,
+        base_minutes=base_minutes,
+        forecast=forecast,
+        use_ml=use_ml,
+    )
+    final = merge_decisions(
+        weather, soil_decision, flow_gpm=flow_gpm, ml_insights=ml_insights
+    )
     return forecast, weather, soil_decision, final
