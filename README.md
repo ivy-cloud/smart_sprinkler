@@ -33,20 +33,103 @@ python3 scripts/api_server.py
 # POST http://127.0.0.1:8765/v1/irrigation/decision
 ```
 
-Docs: [irrigation_schedule_design.md](docs/irrigation_schedule_design.md) · [irrigation_api.md](docs/irrigation_api.md)
+Docs: [irrigation_schedule_design.md](docs/irrigation_schedule_design.md) · [irrigation_api.md](docs/irrigation_api.md) · [ml_overview.md](docs/ml_overview.md)
 
-## Code layout
+## Code structure
+
+### Repository layout
+
+```text
+smart_sprinkler/
+├── services/          # Core libraries (weather, irrigation, HTTP API)
+├── scripts/           # Thin CLIs that call services
+├── ml/                # Model training, datasets, local artifacts (*.pt gitignored)
+├── firmware/          # Target ESP32/STM32 sketches (placeholders)
+├── pre_code/          # Legacy prototypes (local only, not on GitHub)
+├── configs/           # Example env and irrigation JSON
+└── docs/              # Architecture, API, ML, schedule design
+```
+
+### Irrigation decision pipeline
+
+When you run `scripts/analyze_soil.py` (or `POST /v1/irrigation/decision`), flow is:
+
+```text
+scripts/analyze_soil.py
+        │
+        ▼
+services/irrigation/__init__.py     get_final_decision_api() / analyze_soil_api()
+        │
+        ├── services/weather/client.py
+        │      load_forecast()  →  humidity, rain, ET₀, VPD (Open-Meteo)
+        │
+        ├── services/irrigation/weather.py
+        │      decide_weather()  →  WeatherDecision (rules: ON/OFF, minutes)
+        │
+        ├── services/irrigation/soil.py
+        │      analyze_soil()  →  SoilDecision (rules + optional ML)
+        │           └── services/irrigation/ml_inference.py
+        │                 predict_binary()       ← ml/soil/binary/artifacts/model.pt
+        │                 predict_regression_days() ← ml/soil/regression/artifacts/model.pt
+        │
+        └── services/irrigation/merge.py
+               merge_decisions()  →  FinalIrrigationDecision
+                    (sprinkler_on, duration, days_to_next_watering, ml {}, decision_source)
+```
+
+**Rules** handle rain skip, wet soil, and `min(weather, soil)` duration. **ML** (when trained) can skip/boost watering and predict days until next run. Use `--no-ml` for rules only.
+
+### `services/` — production logic
+
+| Path | Responsibility |
+|------|----------------|
+| `services/weather/client.py` | Geocode, fetch forecast, parse hourly rows (`et0_mm`, `vpd_kpa`) |
+| `services/irrigation/config.py` | Thresholds (wet/dry %, base minutes, GPM) |
+| `services/irrigation/types.py` | `SoilReading`, `WeatherDecision`, `SoilDecision`, `FinalIrrigationDecision` |
+| `services/irrigation/weather.py` | Rule-based schedule from forecast |
+| `services/irrigation/soil.py` | Rule-based soil need + calls `analyze_ml()` |
+| `services/irrigation/ml_inference.py` | Loads PyTorch weights; features from CSV + forecast |
+| `services/irrigation/merge.py` | Combines weather + soil + ML → final decision |
+| `services/irrigation/__init__.py` | Public API: `get_final_decision_api`, `analyze_soil_api`, … |
+| `services/api/server.py` | FastAPI routes → same `*_api` functions |
+
+### `scripts/` — entry points
+
+| Script | Calls |
+|--------|--------|
+| `_bootstrap.py` | Adds repo root to `sys.path` |
+| `analyze_soil.py` | Merged or soil-only decision (`--no-ml`, `--soil-only`) |
+| `sprinkler_schedule.py` | Weather rules only |
+| `fetch_weather.py` | Raw forecast table |
+| `api_server.py` | `uvicorn` + `services.api.app` |
+| `train_ml_models.py` | Trains `ml/soil/binary` + `ml/soil/regression` artifacts |
+
+### `ml/` — training (runtime uses `ml_inference.py`, not these directly)
+
+```text
+ml/
+├── soil/binary/       # Classify needs watering now (0/1)
+│   ├── train.py       # → artifacts/model.pt
+│   ├── infer.py       # Standalone CLI (optional)
+│   └── data/*.csv
+├── soil/regression/   # Days until next watering (uses ET₀, VPD, rain)
+│   ├── train.py
+│   ├── infer.py
+│   └── data/*.csv
+└── vision/segmentation/   # YOLO grass/road/water (not wired to services yet)
+```
+
+Train once locally: `pip install -r ml/requirements.txt` then `python3 scripts/train_ml_models.py`.
+
+### Other folders
 
 | Path | Role |
 |------|------|
-| `services/irrigation/` | Weather + soil + merge decision library |
-| `services/weather/` | Open-Meteo forecast client |
-| `services/api/` | FastAPI HTTP server |
-| `scripts/` | Thin CLIs (`fetch_weather`, `sprinkler_schedule`, `analyze_soil`, `api_server`) |
-| `configs/` | Example env and irrigation JSON |
-| `firmware/` | Placeholder sketches (working prototypes in `pre_code/ESP32_TASK/`) |
-| `pre_code/` | Legacy prototypes (`ESP32_TASK/`) kept for reference |
-| `ml/` | ML training & inference (soil MLPs, YOLO grass segmentation) — [docs/ml_overview.md](docs/ml_overview.md) |
+| `firmware/` | Production `.ino` layout (port from `pre_code/ESP32_TASK/`) |
+| `pre_code/` | Legacy working sketches (gitignored on GitHub) |
+| `configs/` | `irrigation.example.json`, `env.example` |
+
+Sensor CSV format (STM32 / `heli_tx`): `voltage,current,flow,waterLevel,soilTemp,humidity`.
 
 ## Repository status
 
