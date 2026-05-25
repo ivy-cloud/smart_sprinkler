@@ -116,7 +116,7 @@ Thousands of labeled frames live under `smart_sprinkler_docs/code/Video_Segmenta
 |-------|------|
 | `firmware/perception/lidar_node.ino` | Distance scan (prototype) |
 | **This vision model** | **Which pixels are grass** from a camera |
-| `firmware/actuator/sprinkler_node.ino` | Servo angle from target direction |
+| `firmware/actuator/hp_tk_rx/hp_tk_rx.ino` | Servo angle from BLE (0–180) |
 
 **Pipeline:** frame → YOLO mask for `grass` → centroid or dry-region bbox → angle command over BLE (`hp_tk` path).
 

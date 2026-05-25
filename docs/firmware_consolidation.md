@@ -29,7 +29,8 @@ These were **copy-pasted** across `heli_tx_blue` and `heli_rc_blue`:
 |-------|--------|----------------|
 | **Sensor gateway** | `gateway/sensor_gateway.ino` | `heli_tx_blue` |
 | **Relay gateway** (optional) | `gateway/relay_gateway.ino` | `heli_rc_blue` |
-| **Sprinkler actuator** | `actuator/sprinkler_node.ino` | `hp_tk_rx` + duration command |
+| **Sprinkler actuator** | `actuator/hp_tk_rx/hp_tk_rx.ino` | `hp_tk_rx` (+ duration command TODO) |
+| **Angle relay (serial→BLE)** | `gateway/hp_tk_tx/hp_tk_tx.ino` | `hp_tk_tx` |
 | **Lidar node** (optional) | `perception/lidar_node.ino` (TODO) | `uart` + `plane` |
 | **Manual input** (dev) | stay in `pre_code/ESP32_TASK/4pi_shoubing` or drop | joystick |
 
@@ -38,7 +39,7 @@ These were **copy-pasted** across `heli_tx_blue` and `heli_rc_blue`:
 | Pair | Why |
 |------|-----|
 | `heli_tx` + `heli_rc` | Two locations in the field; client vs server |
-| `sensor_gateway` + `sprinkler_node` | Sensor box vs sprinkler head |
+| `sensor_gateway` + `hp_tk_rx` | Sensor box vs sprinkler head |
 | `uart` lidar + soil gateway | Different mounts; CPU load |
 
 ---
@@ -74,7 +75,7 @@ Laptop bridge (future): small script reads API JSON → sends BLE commands.
     ┌─────────────┴─────────────┐
     │                           │
     v                           v
-sensor_gateway.ino      sprinkler_node.ino
+sensor_gateway.ino      hp_tk_rx.ino
 (uplink CSV)            (RUN + angle)
 ```
 
@@ -104,7 +105,7 @@ build_src_filter = +<gateway/sensor_gateway.ino> +<common/*>
 
 [env:actuator]
 lib_deps = ESP32Servo
-build_src_filter = +<actuator/sprinkler_node.ino> +<common/*>
+build_src_filter = +<actuator/hp_tk_rx/> +<common/*>
 ```
 
 Single repo, multiple `env` targets — cleaner than one giant `.ino`.

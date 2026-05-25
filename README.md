@@ -125,7 +125,7 @@ Train once locally: `pip install -r ml/requirements.txt` then `python3 scripts/t
 
 | Path | Role |
 |------|------|
-| `firmware/` | Production `.ino` layout (port from `pre_code/ESP32_TASK/`) |
+| `firmware/` | Production `.ino` (`actuator/hp_tk_rx`, `gateway/hp_tk_tx`, …) |
 | `pre_code/` | Legacy working sketches (gitignored on GitHub) |
 | `configs/` | `irrigation.example.json`, `env.example` |
 
