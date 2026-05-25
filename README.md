@@ -33,7 +33,7 @@ python3 scripts/api_server.py
 # POST http://127.0.0.1:8765/v1/irrigation/decision
 ```
 
-Docs: [irrigation_schedule_design.md](docs/irrigation_schedule_design.md) · [irrigation_api.md](docs/irrigation_api.md) · [ml_overview.md](docs/ml_overview.md)
+Docs: [RUNBOOK.md](docs/RUNBOOK.md) (CLI commands) · [irrigation_schedule_design.md](docs/irrigation_schedule_design.md) · [irrigation_api.md](docs/irrigation_api.md) · [ml_overview.md](docs/ml_overview.md)
 
 ## Code structure
 
