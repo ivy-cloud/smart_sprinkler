@@ -36,3 +36,6 @@ secrets/
 *.log
 .coverage
 .pytest_cache/
+
+# Legacy prototypes (local reference only)
+pre_code/

@@ -162,7 +162,7 @@ run if soil_dry AND NOT weather_skip
 Copy and edit:
 
 ```bash
-cp scripts/irrigation_config.example.json scripts/irrigation_config.json
+cp configs/irrigation.example.json configs/irrigation.json
 ```
 
 CLI overrides:
@@ -186,3 +186,5 @@ python3 scripts/sprinkler_schedule.py \
 - No wind, freeze, or ET calculation in v1.
 
 Measure your **actual GPM** with a bucket test and update `--flow-gpm` for accurate gallon estimates.
+
+For soil + weather merge and HTTP API, see [irrigation_api.md](./irrigation_api.md).
