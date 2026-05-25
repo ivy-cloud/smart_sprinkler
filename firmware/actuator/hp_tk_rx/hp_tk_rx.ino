@@ -14,6 +14,9 @@
 
 // Servo pin
 #define SERVO_PIN 13
+// GPIO 2: tied to angle==0 (LOW) vs !=0 (HIGH) — wire per your relay (often valve enable)
+#define VALVE_OR_RELAY_PIN 2
+#define AUX_PIN 15
 
 // BLE UUID
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -72,8 +75,8 @@ void setup() {
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
   myServo.setPeriodHertz(50);
-  pinMode(15,OUTPUT);
-  pinMode(2,OUTPUT);
+  pinMode(AUX_PIN, OUTPUT);
+  pinMode(VALVE_OR_RELAY_PIN, OUTPUT);
   myServo.attach(SERVO_PIN, 500, 2400);
   myServo.write(90);
   delay(1000);
@@ -109,14 +112,12 @@ void setup() {
 
 void loop() {
   // Main loop is idle; BLE work runs in callbacks
-  if(angle == 0)
-  {
-    digitalWrite(15,0);
-    digitalWrite(2,0);
-  }else
-  {
-    digitalWrite(15,0);
-    digitalWrite(2,1);
+  if (angle == 0) {
+    digitalWrite(AUX_PIN, LOW);
+    digitalWrite(VALVE_OR_RELAY_PIN, LOW);  // assumed STOP when angle 0
+  } else {
+    digitalWrite(AUX_PIN, LOW);
+    digitalWrite(VALVE_OR_RELAY_PIN, HIGH); // assumed RUN when spraying
   }
   delay(100);
 }

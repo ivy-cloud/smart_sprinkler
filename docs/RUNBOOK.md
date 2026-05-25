@@ -290,7 +290,63 @@ python3 scripts/analyze_soil.py \
   --json
 ```
 
-Use `sprinkler_on` and `duration_minutes` to command pump/servo (future firmware bridge).
+### E. Decision → hp_tk angle (angle 0 = stop on your wiring)
+
+Laptop runs Python, USB serial talks to **hp_tk_tx**; tx forwards angle over BLE to **hp_tk_rx**.
+
+```bash
+python3 -m pip install pyserial
+python3 scripts/irrigation_to_hp_tk.py --list-ports
+
+# Preview decision + angle without serial
+python3 scripts/irrigation_to_hp_tk.py \
+  --csv "12.1,0.4,0.0,28,22.5,41" \
+  --city "San Jose, CA" \
+  --dry-run
+
+# Send 0 (OFF) or 90 (ON) to hp_tk_tx
+python3 scripts/irrigation_to_hp_tk.py \
+  --csv "12.1,0.4,0.0,28,22.5,41" \
+  --city "San Jose, CA" \
+  --port /dev/cu.usbserial-XXXX \
+  --angle-on 90
+```
+
+| `sprinkler_on` | Angle sent | Effect (if GPIO2 = valve) |
+|----------------|------------|-------------------------|
+| `false` | **0** | Stop / park |
+| `true` | `--angle-on` (default 90) | Spray at that nozzle angle |
+
+Duration is **not** sent to firmware yet (only ON/OFF via angle 0 vs non-zero).
+
+### F. Timed spray experiment (0 → angle → wait → 0)
+
+For bench tests, spray time is **decision duration converted to seconds, capped between 1 and 10 s** (not full minutes).
+
+```bash
+python3 scripts/hp_tk_spray_experiment.py --list-ports
+
+python3 scripts/hp_tk_spray_experiment.py \
+  --csv "12.1,0.4,0.0,28,22.5,41" \
+  --city "San Jose, CA" \
+  --dry-run
+
+python3 scripts/hp_tk_spray_experiment.py \
+  --csv "12.1,0.4,0.0,28,22.5,41" \
+  --city "San Jose, CA" \
+  --port /dev/cu.usbserial-XXXX \
+  --angle 30 \
+  --min-seconds 1 \
+  --max-seconds 10
+```
+
+| Phase | Angle | Wait |
+|-------|-------|------|
+| Start | 0 | `--settle-seconds` (default 1 s) |
+| Spray | `--angle` (default 30) | `min(10, max(1, duration_minutes×60))` or `--spray-seconds` |
+| End | 0 | `--settle-seconds` |
+
+If `sprinkler_on` is false, only **angle 0** is sent.
 
 ### B. No sensor yet — test weather policy
 

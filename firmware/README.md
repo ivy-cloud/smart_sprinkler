@@ -33,9 +33,17 @@ firmware/
 - `hp_tk_rx`: [ESP32Servo](https://github.com/madhephaestus/ESP32Servo) + BLE
 - `hp_tk_tx`: BLE only
 
-**Typical flow:** Laptop/Python → USB serial → **hp_tk_tx** → BLE → **hp_tk_rx** → nozzle angle.
+**Typical flow:** Laptop/Python → USB serial → **hp_tk_tx** → BLE → **hp_tk_rx** → nozzle + GPIO2.
 
-Irrigation ON/OFF + duration from Python: [docs/RUNBOOK.md](../docs/RUNBOOK.md) (`analyze_soil.py` / API). Duration commands on the actuator are future work (see [firmware_consolidation.md](../docs/firmware_consolidation.md)).
+**Python → hardware (angle 0 = stop assumed):**
+
+```bash
+python3 scripts/irrigation_to_hp_tk.py --csv "12.1,0.4,0.0,28,22.5,41" --city "San Jose" --port /dev/cu.usbserial-*
+```
+
+Maps `sprinkler_on` from [services/irrigation](../services/irrigation/) to angle **0** (off) or **90** (on, configurable). See [docs/RUNBOOK.md](../docs/RUNBOOK.md).
+
+Timed run duration on the valve is not implemented yet (see [firmware_consolidation.md](../docs/firmware_consolidation.md)).
 
 ## Placeholders (not yet ported)
 

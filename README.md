@@ -103,6 +103,8 @@ services/irrigation/__init__.py     get_final_decision_api() / analyze_soil_api(
 | `fetch_weather.py` | Raw forecast table |
 | `api_server.py` | `uvicorn` + `services.api.app` |
 | `train_ml_models.py` | Trains `ml/soil/binary` + `ml/soil/regression` artifacts |
+| `irrigation_to_hp_tk.py` | Irrigation decision → serial angle on `hp_tk_tx` (0 = stop) |
+| `hp_tk_spray_experiment.py` | Demo: 0 → spray angle → 1–10 s → 0 from decision duration |
 
 ### `ml/` — training (runtime uses `ml_inference.py`, not these directly)
 

@@ -6,3 +6,5 @@ eval_type_backport>=0.2.0; python_version < "3.10"
 # Python 3.10+ recommended. 3.9 supported for CLI; API models use typing.Optional.
 
 # Optional ML: pip install -r ml/requirements.txt
+# Serial bridge to hp_tk_tx (scripts/irrigation_to_hp_tk.py)
+pyserial>=3.5
