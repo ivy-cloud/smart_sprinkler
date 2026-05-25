@@ -26,6 +26,11 @@ build/
 *.onnx
 data/raw/
 data/processed/
+ml/**/artifacts/
+ml/vision/segmentation/runs/
+ml/vision/segmentation/train/
+ml/vision/segmentation/valid/
+ml/vision/segmentation/test/
 
 # Secrets
 *.pem

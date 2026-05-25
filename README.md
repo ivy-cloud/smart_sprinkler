@@ -46,6 +46,7 @@ Docs: [irrigation_schedule_design.md](docs/irrigation_schedule_design.md) · [ir
 | `configs/` | Example env and irrigation JSON |
 | `firmware/` | Placeholder sketches (working prototypes in `pre_code/ESP32_TASK/`) |
 | `pre_code/` | Legacy prototypes (`ESP32_TASK/`) kept for reference |
+| `ml/` | ML training & inference (soil MLPs, YOLO grass segmentation) — [docs/ml_overview.md](docs/ml_overview.md) |
 
 ## Repository status
 

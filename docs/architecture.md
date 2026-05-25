@@ -222,9 +222,9 @@ smart_sprinkler/
 │   └── weather/                     # Open-Meteo client
 ├── apps/
 │   └── dashboard/                   # Future: web UI, Water Analytics
-├── ml/                              # Future: vision training, grass segmentation
-│   ├── datasets/
-│   └── models/
+├── ml/                              # Soil MLPs + YOLO segmentation (see docs/ml_overview.md)
+│   ├── soil/binary|regression/
+│   └── vision/segmentation/
 ├── tests/
 │   ├── test_soil.py
 │   ├── test_weather.py

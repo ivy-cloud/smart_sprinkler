@@ -1,0 +1,6 @@
+# ML training & inference (install in a venv: pip install -r ml/requirements.txt)
+torch>=2.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+ultralytics>=8.0.0

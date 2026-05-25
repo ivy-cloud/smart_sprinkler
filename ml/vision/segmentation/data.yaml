@@ -1,0 +1,7 @@
+# Point train/valid/test at symlinked folders (see README.md)
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 4
+names: ['car', 'grass', 'road', 'water']
