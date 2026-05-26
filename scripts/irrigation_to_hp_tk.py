@@ -20,7 +20,7 @@ import sys
 
 import _bootstrap  # noqa: F401
 
-from services.irrigation import get_final_decision_api
+from services.irrigation import get_final_decision_api, hp_tk_angle_from_decision
 
 
 def list_serial_ports() -> list[str]:
@@ -46,13 +46,6 @@ def send_angle(port: str, angle: int, *, baud: int = 115200) -> None:
     print(f"Sent angle {angle} to {port} ({baud} baud)")
 
 
-def decision_to_angle(payload: dict, *, angle_when_on: int) -> tuple[int, str]:
-    """Map merged decision -> hp_tk angle (0 = stop on your wiring)."""
-    if payload.get("sprinkler_on"):
-        return angle_when_on, "irrigation ON"
-    return 0, payload.get("skip_reason") or "irrigation OFF"
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Irrigation decision -> serial angle for hp_tk_tx -> BLE -> hp_tk_rx"
@@ -70,7 +63,31 @@ def main() -> int:
         "--angle-on",
         type=int,
         default=90,
-        help="Servo angle when sprinkler_on (1-180, default 90)",
+        help="Servo angle when sprinkler_on if no --image (1-180, default 90)",
+    )
+    parser.add_argument(
+        "--image",
+        help="Camera frame: YOLO grass centroid -> nozzle angle (overrides --angle-on when ON)",
+    )
+    parser.add_argument("--vision-weights", help="Path to YOLO .pt (default: search repo)")
+    parser.add_argument(
+        "--invert-x",
+        action="store_true",
+        help="Mirror horizontal grass position -> angle mapping",
+    )
+    # Bench calibration: camera left/center/right vs nozzle 0°/90°/180°.
+    parser.add_argument(
+        "--angle-offset",
+        type=float,
+        default=0.0,
+        metavar="DEG",
+        help="Degrees added after vision mapping (default 0)",
+    )
+    parser.add_argument(
+        "--angle-scale",
+        type=float,
+        default=1.0,
+        help="Scale vision sweep around 90° (default 1)",
     )
     parser.add_argument(
         "--port",
@@ -108,17 +125,40 @@ def main() -> int:
             base_minutes=args.base_minutes,
             flow_gpm=args.flow_gpm,
             use_ml=not args.no_ml,
+            image=args.image,
+            vision_weights=args.vision_weights,
+            default_nozzle_angle=args.angle_on,
+            vision_invert_x=args.invert_x,
+            vision_angle_offset_deg=args.angle_offset,
+            vision_angle_scale=args.angle_scale,
         )
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    angle, reason = decision_to_angle(payload, angle_when_on=args.angle_on)
+    if args.image and payload.get("nozzle_angle_deg") is not None:
+        angle = int(payload["nozzle_angle_deg"])
+        vision = payload.get("vision")
+        reason = (
+            "irrigation ON (YOLO grass centroid)"
+            if vision and str(vision.get("source", "")).startswith("vision_grass")
+            else "irrigation ON (vision fallback)"
+        )
+    else:
+        angle, reason, vision = hp_tk_angle_from_decision(
+            payload,
+            default_on_angle=args.angle_on,
+            image=None,
+            vision_weights=args.vision_weights,
+            invert_x=args.invert_x,
+        )
 
     if args.json:
         out = dict(payload)
         out["hp_tk_angle"] = angle
         out["hp_tk_reason"] = reason
+        if vision:
+            out["vision"] = vision
         print(json.dumps(out, indent=2))
     else:
         print("=== Irrigation -> hp_tk ===")
@@ -128,6 +168,9 @@ def main() -> int:
         if payload.get("days_to_next_watering") is not None:
             print(f"Next water (ML):  {payload.get('days_to_next_watering')} days")
         print(f"hp_tk angle:      {angle}  ({reason})")
+        if vision:
+            for note in vision.get("notes") or []:
+                print(f"  Vision: {note}")
 
     if args.dry_run:
         print("(dry-run: serial not written)")

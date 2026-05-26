@@ -124,6 +124,8 @@ class FinalIrrigationDecision:
     soil: SoilDecision | None = None
     days_to_next_watering: float | None = None
     ml: dict[str, Any] | None = None
+    nozzle_angle_deg: int | None = None
+    vision: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -139,6 +141,8 @@ class FinalIrrigationDecision:
             "notes": self.notes,
             "days_to_next_watering": self.days_to_next_watering,
             "ml": self.ml,
+            "nozzle_angle_deg": self.nozzle_angle_deg,
+            "vision": self.vision,
             "weather": asdict(self.weather) if self.weather else None,
             "soil": asdict(self.soil) if self.soil else None,
         }

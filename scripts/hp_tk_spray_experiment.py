@@ -153,7 +153,14 @@ def print_summary(
     print(f"  This demo run time:    {lab_s:.1f} s  (capped {timing['min_cap']:.0f}-{timing['max_cap']:.0f} s)")
     if prod_s > lab_s and sprinkler_on:
         print(f"  Scale factor:          ~{prod_s / lab_s:.0f}x shorter than production")
-    print(f"  Nozzle angles:         0 -> {angle_spray} -> 0  (0 = stop on your wiring)")
+    vision = payload.get("vision") or {}
+    if vision.get("source", "").startswith("vision_grass"):
+        print(f"  Nozzle angles:         0 -> {angle_spray} -> 0  (YOLO grass aim)")
+    else:
+        print(f"  Nozzle angles:         0 -> {angle_spray} -> 0  (0 = stop on your wiring)")
+    if vision.get("notes"):
+        for note in vision["notes"]:
+            print(f"    {note}")
     print(f"  Settle pauses:         {settle_s:.1f} s after each angle 0")
     if dry_run:
         print("  Mode:                  DRY-RUN (no serial writes)")
@@ -231,7 +238,32 @@ def main() -> int:
     parser.add_argument("--city")
     parser.add_argument("--lat", type=float)
     parser.add_argument("--lon", type=float)
-    parser.add_argument("--angle", type=int, default=30, help="Spray angle when ON (1-180)")
+    parser.add_argument(
+        "--angle",
+        type=int,
+        default=30,
+        help="Spray angle when ON if no --image (1-180)",
+    )
+    parser.add_argument(
+        "--image",
+        help="Camera frame: YOLO grass centroid sets spray angle",
+    )
+    parser.add_argument("--vision-weights", help="Path to YOLO .pt weights")
+    parser.add_argument("--invert-x", action="store_true", help="Mirror grass x -> angle")
+    # Bench calibration: camera left/center/right vs nozzle 0°/90°/180°.
+    parser.add_argument(
+        "--angle-offset",
+        type=float,
+        default=0.0,
+        metavar="DEG",
+        help="Degrees added after vision mapping (default 0)",
+    )
+    parser.add_argument(
+        "--angle-scale",
+        type=float,
+        default=1.0,
+        help="Scale vision sweep around 90° (default 1)",
+    )
     parser.add_argument(
         "--spray-seconds",
         type=float,
@@ -271,10 +303,20 @@ def main() -> int:
             lon=args.lon,
             sensor=args.csv,
             use_ml=not args.no_ml,
+            image=args.image,
+            vision_weights=args.vision_weights,
+            default_nozzle_angle=args.angle,
+            vision_invert_x=args.invert_x,
+            vision_angle_offset_deg=args.angle_offset,
+            vision_angle_scale=args.angle_scale,
         )
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+
+    spray_angle = 0
+    if payload.get("sprinkler_on"):
+        spray_angle = int(payload.get("nozzle_angle_deg") or args.angle)
 
     timing = duration_mapping(
         payload,
@@ -286,7 +328,7 @@ def main() -> int:
 
     print_summary(
         payload,
-        angle_spray=args.angle,
+        angle_spray=spray_angle,
         timing=timing,
         settle_s=args.settle_seconds,
         dry_run=args.dry_run,
@@ -302,8 +344,8 @@ def main() -> int:
                         "production_spray_seconds": timing["production_seconds"],
                         "lab_spray_seconds": spray_s,
                         "lab_cap_seconds": [timing["min_cap"], timing["max_cap"]],
-                        "spray_angle": args.angle if payload.get("sprinkler_on") else 0,
-                        "sequence": ["0", str(args.angle), "0"]
+                        "spray_angle": spray_angle if payload.get("sprinkler_on") else 0,
+                        "sequence": ["0", str(spray_angle), "0"]
                         if payload.get("sprinkler_on")
                         else ["0"],
                     },
@@ -317,7 +359,7 @@ def main() -> int:
     return run_experiment(
         port=args.port,
         payload=payload,
-        angle_spray=args.angle,
+        angle_spray=spray_angle,
         spray_seconds=spray_s,
         production_seconds=timing["production_seconds"],
         baud=args.baud,

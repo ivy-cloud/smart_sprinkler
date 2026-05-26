@@ -17,6 +17,7 @@ from services.irrigation.types import (
     SoilReading,
     WeatherDecision,
 )
+from services.irrigation.vision import aim_from_image, hp_tk_angle_from_decision, vision_weights_available
 from services.irrigation.weather import decide_weather, get_weather_decision
 from services.weather.client import load_forecast, resolve_place_from_args
 
@@ -33,6 +34,9 @@ __all__ = [
     "get_weather_decision_api",
     "analyze_soil_api",
     "get_final_decision_api",
+    "aim_from_image",
+    "hp_tk_angle_from_decision",
+    "vision_weights_available",
 ]
 
 
@@ -141,6 +145,12 @@ def get_final_decision_api(
     efficiency: float = 0.8,
     zone_area_sqft: float = 1000,
     use_ml: bool = True,
+    image: str | None = None,
+    vision_weights: str | None = None,
+    default_nozzle_angle: int = 90,
+    vision_invert_x: bool = False,
+    vision_angle_offset_deg: float = 0.0,
+    vision_angle_scale: float = 1.0,
 ) -> dict:
     from dataclasses import asdict
 
@@ -160,4 +170,17 @@ def get_final_decision_api(
     out["timezone"] = forecast.timezone
     out["fetched_at"] = forecast.fetched_at
     out["agro_summary"] = _agro_summary_dict(forecast)
+
+    if image and out.get("sprinkler_on"):
+        angle, _, vision = hp_tk_angle_from_decision(
+            out,
+            default_on_angle=default_nozzle_angle,
+            image=image,
+            vision_weights=vision_weights,
+            invert_x=vision_invert_x,
+            angle_offset_deg=vision_angle_offset_deg,
+            angle_scale=vision_angle_scale,
+        )
+        out["nozzle_angle_deg"] = angle
+        out["vision"] = vision
     return out

@@ -319,6 +319,20 @@ python3 scripts/irrigation_to_hp_tk.py \
 
 Duration is **not** sent to firmware yet (only ON/OFF via angle 0 vs non-zero).
 
+**Optional YOLO aim** (trained `ml/vision/segmentation/runs/segment/train/weights/best.pt`):
+
+```bash
+python3 scripts/predict_grass_angle.py path/to/frame.jpg --json
+
+python3 scripts/irrigation_to_hp_tk.py \
+  --csv "12.1,0.4,0.0,28,22.5,41" \
+  --city "San Jose, CA" \
+  --image path/to/frame.jpg \
+  --port /dev/cu.usbserial-XXXX
+```
+
+Without `--image`, ON uses fixed `--angle-on` (default 90). Calibration: `--angle-offset`, `--angle-scale`, `--invert-x`.
+
 ### F. Timed spray experiment (0 → angle → wait → 0)
 
 For bench tests, spray time is **decision duration converted to seconds, capped between 1 and 10 s** (not full minutes).
@@ -336,6 +350,7 @@ python3 scripts/hp_tk_spray_experiment.py \
   --city "San Jose, CA" \
   --port /dev/cu.usbserial-XXXX \
   --angle 30 \
+  --image path/to/frame.jpg \
   --min-seconds 1 \
   --max-seconds 10
 ```
@@ -343,7 +358,7 @@ python3 scripts/hp_tk_spray_experiment.py \
 | Phase | Angle | Wait |
 |-------|-------|------|
 | Start | 0 | `--settle-seconds` (default 1 s) |
-| Spray | `--angle` (default 30) | `min(10, max(1, duration_minutes×60))` or `--spray-seconds` |
+| Spray | `--angle` or YOLO from `--image` | `min(10, max(1, duration_minutes×60))` or `--spray-seconds` |
 | End | 0 | `--settle-seconds` |
 
 If `sprinkler_on` is false, only **angle 0** is sent.
