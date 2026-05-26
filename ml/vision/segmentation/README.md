@@ -16,13 +16,20 @@ Training images (~600MB) live in the source tree:
 
 `../../smart_sprinkler_docs/code/Video_Segmentation/`
 
-Copy or symlink before training:
+Link before training (dataset is **not** in git — `train.py` will error until you do):
 
 ```bash
-# from repo root — example symlink
-ln -s ../../smart_sprinkler_docs/code/Video_Segmentation/train ml/vision/segmentation/train
-ln -s ../../smart_sprinkler_docs/code/Video_Segmentation/valid ml/vision/segmentation/valid
-ln -s ../../smart_sprinkler_docs/code/Video_Segmentation/test ml/vision/segmentation/test
+# from repo root (adjust SMART_SPRINKLER_DOCS if your docs path differs)
+bash scripts/setup_segmentation_dataset.sh
+```
+
+Manual symlink example:
+
+```bash
+cd ml/vision/segmentation
+ln -s ~/smart_sprinkler_docs/code/Video_Segmentation/train train
+ln -s ~/smart_sprinkler_docs/code/Video_Segmentation/valid valid
+ln -s ~/smart_sprinkler_docs/code/Video_Segmentation/test test
 ```
 
 Pretrained weights (optional, gitignored): copy `yolo11n-seg.pt` from the same docs folder into this directory.
