@@ -77,6 +77,8 @@ python3 scripts/irrigation_to_hp_tk.py ... --image frame.jpg --angle-offset 0 --
 
 See `angle.py` (`centroid_to_nozzle_angle`) and `--angle-offset` / `--angle-scale` on the CLIs.
 
+**Bench experiment (two images + 90° fallback):** [examples/vision/README.md](../../../examples/vision/README.md) and `scripts/vision_angle_experiment.py`.
+
 ### Low-level Ultralytics
 
 ```python

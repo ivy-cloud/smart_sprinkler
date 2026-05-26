@@ -363,6 +363,29 @@ python3 scripts/hp_tk_spray_experiment.py \
 
 If `sprinkler_on` is false, only **angle 0** is sent.
 
+### G. Vision angle experiment (two images vs fallback 90°)
+
+Compare **no image** (always fallback **90°**, no YOLO) vs two frames (grass left vs right → different angles), then send each value to **hp_tk_tx**.
+
+Setup: copy two test frames to `examples/vision/` — see [examples/vision/README.md](../examples/vision/README.md).
+
+```bash
+# Angles only (no USB)
+python3 scripts/vision_angle_experiment.py \
+  --image-a examples/vision/frame_grass_left.jpg \
+  --image-b examples/vision/frame_grass_right.jpg \
+  --dry-run
+
+# No images → single case, 90°
+python3 scripts/vision_angle_experiment.py --dry-run
+
+# Send 0 → 90 → angle_a → angle_b → 0 on hp_tk_tx
+python3 scripts/vision_angle_experiment.py \
+  --image-a examples/vision/frame_grass_left.jpg \
+  --image-b examples/vision/frame_grass_right.jpg \
+  --port /dev/cu.usbserial-XXXX --pause 4
+```
+
 ### B. No sensor yet — test weather policy
 
 ```bash
