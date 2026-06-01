@@ -63,8 +63,8 @@ def _torch_available() -> bool:
 
 def _estimate_salinity_ec(reading: SoilReading) -> tuple[float, float]:
     """Proxy when STM32 CSV has no EC/salinity columns."""
-    current = reading.current if reading.current is not None else 0.4
-    voltage = reading.voltage if reading.voltage is not None else 12.0
+    current = reading.current if reading.current and reading.current > 0 else 0.4
+    voltage = reading.voltage if reading.voltage and reading.voltage > 0 else 12.0
     salinity = (
         reading.salinity_uS_cm
         if reading.salinity_uS_cm is not None

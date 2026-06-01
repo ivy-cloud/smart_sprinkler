@@ -10,6 +10,7 @@ Exact CLI commands that produce an **irrigation decision** (sprinkler ON/OFF, du
 |---------|---------|---------|
 | Nothing (just location) | Weather-only ON/OFF + minutes | `sprinkler_schedule.py --city "…"` |
 | Soil sensor CSV + location | **Final** decision (recommended) | `analyze_soil.py --csv "…" --city "…"` |
+| **SoilNode BLE RX** on USB + location | **Live** decision from serial | `soil_serial_ml.py --port … --city "…"` |
 | Soil CSV only | Soil rules (+ ML binary if trained) | `analyze_soil.py --csv "…" --soil-only` |
 | HTTP / another app | Same as final decision | `api_server.py` then `POST /v1/irrigation/decision` |
 | Debug forecast only | No decision (tables) | `fetch_weather.py` (see below) |
@@ -36,6 +37,8 @@ python3 scripts/train_ml_models.py
 ```
 
 Without ML training, rule-based decisions still work; output will note missing model files.
+
+**Live BLE path:** flash `firmware/gateway/soil_node_rx/soil_node_rx.ino` on a second ESP32-S3 and use `scripts/soil_serial_ml.py` (see **§ H** below). Same ML artifacts apply when trained.
 
 **Location** (pick one per run):
 
@@ -275,6 +278,7 @@ Set `"use_ml": false` for rules-only.
 | `sprinkler_schedule.py` | ✓ | ✗ | ✗ | ✗ |
 | `fetch_weather.py --with-schedule` | ✓ | ✗ | ✗ | ✗ |
 | `POST /v1/irrigation/decision` | ✓ | ✓ | ✓ | ✓ default |
+| `soil_serial_ml.py` + `--city` | ✓ | ✓ | ✓ | ✓ default |
 
 ---
 
@@ -386,6 +390,113 @@ python3 scripts/vision_angle_experiment.py \
   --port /dev/cu.usbserial-XXXX --pause 4
 ```
 
+### H. SoilNode BLE receiver → live ML decision (ESP32-S3 RX + laptop)
+
+Field **SoilNode TX** advertises over BLE (Nordic UART notify). A second ESP32-S3 runs **`firmware/gateway/soil_node_rx/soil_node_rx.ino`**, connects to the TX, and prints English soil lines on USB. The laptop runs **`scripts/soil_serial_ml.py`** for realtime weather + soil merge + ML.
+
+**Hardware**
+
+| Board | Firmware | USB to laptop |
+|-------|----------|---------------|
+| SoilNode TX (field) | Vendor `SoilNode` | Optional (real soil temp on TX serial) |
+| ESP32-S3 RX | `soil_node_rx.ino` | **Required** for live path |
+
+**Flash RX (Arduino IDE)**
+
+| Setting | Value |
+|---------|--------|
+| Sketch | `firmware/gateway/soil_node_rx/soil_node_rx.ino` |
+| Board | ESP32S3 Dev Module |
+| USB CDC On Boot | **Enabled** |
+| Serial Monitor | 115200 (close before running Python) |
+
+Set `TARGET_MAC` in the sketch to your TX MAC if needed (default in repo).
+
+**TX must be powered**; its serial boot log should include `BLE advertising started.`
+
+**Expected RX serial (after connect)**
+
+```text
+[BLE] Connected to SoilNode
+[BLE] Ready — soil data will appear below
+[SOIL] Humidity: 0.0%   Temperature: 0.0 C   Salinity: 24 uS/cm   Conductivity: 30 uS/cm
+[CSV] 0,0,0,0.0,0.0,0.0
+[EC] salinity_uS_cm=24 conductivity_uS_cm=30
+```
+
+BLE often sends **binary** frames: salinity/EC are real; **humidity** and **soil temp** may be 0 on the wire. The Python script merges `[SOIL]` + `[CSV]` + `[EC]` (does not feed the bare zero CSV alone to ML) and can fill missing temp from forecast or a second USB port.
+
+**One-time Python deps**
+
+```bash
+python3 -m pip install pyserial
+python3 -m pip install -r requirements.txt
+# Optional ML weights:
+python3 -m pip install -r ml/requirements.txt
+python3 scripts/train_ml_models.py
+```
+
+**Live decision (recommended)**
+
+Close **Arduino Serial Monitor** on the RX port first.
+
+```bash
+python3 scripts/soil_serial_ml.py --list-ports
+
+python3 scripts/soil_serial_ml.py \
+  --port /dev/cu.usbmodem12201 \
+  --city "San Jose"
+```
+
+Replace the port with your RX `cu.usbmodem*` device from `--list-ports`.
+
+**Optional: soil temp from TX USB** (second cable to field board)
+
+```bash
+python3 scripts/soil_serial_ml.py \
+  --port /dev/cu.usbmodem12201 \
+  --temp-port /dev/cu.usbmodem58FC0382281 \
+  --city "San Jose"
+```
+
+When soil temp is 0 or missing and `--city` (or `--lat`/`--lon`) is set, the script uses **Open-Meteo air temperature** as a proxy (`--temp-from-weather`, default on). Disable with `--no-temp-from-weather`.
+
+**Example output**
+
+```text
+Listening on /dev/cu.usbmodem12201 @ 115200 (Ctrl+C to stop)
+Missing soil temp -> Open-Meteo air @ San Jose, California, United States
+ML uses merged [SOIL]+[CSV]+[EC] (not raw zero CSV alone)
+
+>> legacy CSV: 0.0,0.0,0.0,0.0,12.1,0.0  (temp from weather-air (12.1°C))
+>> ML inputs:   humidity=0.0%  temp=12.1°C  salinity=24 μS/cm  EC=30 μS/cm
+--- decision ---
+  sprinkler_on:     True
+  duration_minutes: 15
+  ml_needs_water:   0.25
+  ml_note:          ML binary: likely already watered (p=0.75).
+```
+
+| Log field | Meaning |
+|-----------|---------|
+| `ML inputs` | Values actually passed to ML (salinity/EC from `[EC]`, temp patched if needed) |
+| `legacy CSV` | Six-field row for rule engine (voltage,current,flow,level,temp,humidity) |
+| `temp from weather-air` | Soil temp missing over BLE; air temp from forecast used |
+
+**Other flags**
+
+```bash
+# Every serial line + JSON payload
+python3 scripts/soil_serial_ml.py --port /dev/cu.usbmodem12201 --city "San Jose" --verbose --json
+
+# Soil rules + ML only (no weather merge for duration)
+python3 scripts/soil_serial_ml.py --port /dev/cu.usbmodem12201 --soil-only --city "San Jose"
+```
+
+**Chinese serial labels (optional A/B):** `firmware/gateway/soil_node_rx_cn/soil_node_rx_cn.ino` — same BLE logic, `[SOIL]` in Chinese. For normal use and ML, prefer **`soil_node_rx`** (English).
+
+**USB sanity check:** if RX serial shows only ROM text, flash `firmware/gateway/serial_usb_test/serial_usb_test.ino` or enable **USB CDC On Boot**.
+
 ### B. No sensor yet — test weather policy
 
 ```bash
@@ -417,6 +528,10 @@ python3 scripts/analyze_soil.py --csv "12.1,0.4,0.0,28,22.5,41" --city "San Jose
 | ML notes: “no trained weights” | Run `python3 scripts/train_ml_models.py` |
 | ML notes: “install torch” | `pip install -r ml/requirements.txt` |
 | Network / 502 from API | Check internet; Open-Meteo must be reachable |
+| `soil_serial_ml.py`: port is busy | Close Arduino Serial Monitor; `lsof /dev/cu.usbmodem*` |
+| RX serial: no `[SOIL]` after Ready | TX powered? BLE advertising? Check MAC in sketch |
+| ML inputs: humidity=0 | BLE binary path often lacks moisture; rules may differ from ML |
+| ML inputs: temp from weather-air | Expected when BLE temp is 0; use `--temp-port` for TX USB soil temp |
 
 ---
 
