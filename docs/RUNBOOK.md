@@ -533,6 +533,142 @@ python3 scripts/analyze_soil.py --csv "12.1,0.4,0.0,28,22.5,41" --city "San Jose
 
 ---
 
+## I. VOFA supervisor demo (weather + fake ML → gateway)
+
+Laptop script decides irrigate yes/no, then sends VOFA-style commands to **`gateway_ctrl`** USB (`yaw:` / `pitch:` / `motor:` / `pump:`). Demo scenarios hard-code weather + fake vision so you can bench-test without Open-Meteo or a camera.
+
+**Axis note:** supervisor `send_aim()` swaps yaw↔pitch on the wire (`yaw:` gets pitch value and `pitch:` gets yaw) to match the gimbal wiring. Logs still show logical Y=pan / P=tilt.
+
+### Test plan (WATER ON + SKIP)
+
+| # | Scenario | Category | Expect |
+|---|----------|----------|--------|
+| 1 | `water` | **WATER ON** | Pump ON ~3s; Y=100 P=75; motor=120 |
+| 2 | `water_critical` | **WATER ON** | Very dry soil; higher motor; Y=95 P=80 |
+| 3 | `water_moderate` | **WATER ON** | Moderate dry; shorter plan; Y=110 P=70 |
+| 4 | `rain_skip` | SKIP | Pump OFF — weather rain veto |
+| 5 | `wet_soil` | SKIP | Pump OFF — soil/ML says wet enough |
+| 6 | `live` + dry CSV | **WATER ON** (usually) | Real Open-Meteo + `0,0,0,28,22.5,35` |
+| 7 | `live` + wet CSV | SKIP (usually) | Real Open-Meteo + `0,0,0,78,22.0,75` |
+
+**Phase A — dry-run all cases (no hardware):**
+
+```bash
+python3 scripts/vofa_supervisor_demo.py --test-plan
+python3 scripts/vofa_supervisor_demo.py --run-all-dry
+```
+
+**Phase B — actuate WATER ON cases** (close VOFA+ first):
+
+```bash
+python3 scripts/vofa_supervisor_demo.py --list-ports
+
+python3 scripts/vofa_supervisor_demo.py --scenario water \
+  --port /dev/cu.usbmodemXXXX --spray-seconds 3
+
+python3 scripts/vofa_supervisor_demo.py --scenario water_critical \
+  --port /dev/cu.usbmodemXXXX --spray-seconds 3
+
+python3 scripts/vofa_supervisor_demo.py --scenario water_moderate \
+  --port /dev/cu.usbmodemXXXX --spray-seconds 3
+
+python3 scripts/vofa_supervisor_demo.py --scenario live --city "San Jose" \
+  --csv "0,0,0,28,22.5,35" --port /dev/cu.usbmodemXXXX --spray-seconds 3
+```
+
+**Phase C — actuate SKIP cases** (pump must stay OFF):
+
+```bash
+python3 scripts/vofa_supervisor_demo.py --scenario rain_skip \
+  --port /dev/cu.usbmodemXXXX
+
+python3 scripts/vofa_supervisor_demo.py --scenario wet_soil \
+  --port /dev/cu.usbmodemXXXX
+
+python3 scripts/vofa_supervisor_demo.py --scenario live --city "San Jose" \
+  --csv "0,0,0,78,22.0,75" --port /dev/cu.usbmodemXXXX
+```
+
+Single-case dry-run with full input/decision/expected output:
+
+```bash
+python3 scripts/vofa_supervisor_demo.py --scenario water --dry-run
+python3 scripts/vofa_supervisor_demo.py --scenario water_critical --dry-run
+python3 scripts/vofa_supervisor_demo.py --scenario rain_skip --dry-run
+```
+
+Optional: soil from latest `firewater:` line on the gateway:
+
+```bash
+python3 scripts/vofa_supervisor_demo.py --scenario live --city "San Jose" \
+  --port /dev/cu.usbmodemXXXX --read-firewater --spray-seconds 3
+```
+
+### J. Interactive live demo (weather + fake vision + soil hand test)
+
+Continuous supervisor: prints **live Open-Meteo weather**, cycles **fake ML camera frames** (default every **3s**) with live aim angles, reads **soil in a background thread**, and **START/STOP** watering when you change the probe by hand.
+
+```bash
+# Preview weather + cycling fake images + decisions (no USB)
+python3 scripts/vofa_supervisor_live.py --city "San Jose" --dry-run
+
+# Same with IP geolocation for weather
+python3 scripts/vofa_supervisor_live.py --auto-location --fake-image dry_left --dry-run
+
+# Full demo — close VOFA+ first; probe + nozzle aim both update live
+python3 scripts/vofa_supervisor_live.py --port /dev/cu.usbmodemXXXX \\
+  --city "San Jose" --fake-image dry_left --motor 120 \\
+  --dry-below 50 --wet-above 60 --vision-interval 3
+
+# Static aim (no frame cycling)
+python3 scripts/vofa_supervisor_live.py --port /dev/cu.usbmodemXXXX \\
+  --city "San Jose" --static-vision
+
+# Dry-run but still read live soil from gateway
+python3 scripts/vofa_supervisor_live.py --port /dev/cu.usbmodemXXXX \
+  --city "San Jose" --dry-run
+```
+
+| `--fake-image` | Sector | Aim Y / P |
+|----------------|--------|-----------|
+| `far_left` | Far left | 160 / 40 |
+| `left` (`dry_left`) | Left | 130 / 120 |
+| `center_near` | Center near | 100 / 50 |
+| `center_far` (`dry_center`) | Center far | 90 / 140 |
+| `right` (`dry_right`) | Right | 50 / 45 |
+| `far_right` | Far right | 20 / 130 |
+
+**Live vision (default):** every `--vision-interval` seconds (default **3**), angles **ping-pong** through **6 lawn waypoints** (servo range 0–180°) while the pump is ON:
+
+| Waypoint | Yaw | Pitch |
+|----------|-----|-------|
+| `far_left` | 160 | 40 |
+| `left` | 130 | 120 |
+| `center_near` | 100 | 50 |
+| `center_far` | 90 | 140 |
+| `right` | 50 | 45 |
+| `far_right` | 20 | 130 |
+
+Each step changes **both** pan (~20°↔160°) and tilt (~40°↔140°) so the gimbal moves on two axes while watering.
+
+Sweep: `far_left ↔ … ↔ far_right ↔ …` (back and forth). Custom path: `--aim-sequence left,center_near,right,center_near`. Aliases: `dry_left`→`left`, `dry_right`→`right`, `dry_center`→`center_far`.
+
+Watch for `>>> AIM UPDATE` (angles while watering), `>>> NEW FRAME` (frame seen but pump off), and `>>> START WATERING` / `>>> STOP WATERING` (soil threshold crossings).
+
+**Threshold mode (default)** — reacts on every new `firewater:` line:
+
+| Reading | Action |
+|---------|--------|
+| `<= --dry-below` (default 50) | **START** pump/motor |
+| `>= --wet-above` (default 60) | **STOP** pump/motor |
+| between | hold current state (hysteresis) |
+
+Tune for your probe: `--dry-below 45 --wet-above 55` (sensitive) or `--dry-below 40 --wet-above 70` (wider band).
+
+Use `--mode merge` for full weather+ML rules instead of simple thresholds.
+
+---
+
 ## Related docs
 
 - [irrigation_api.md](./irrigation_api.md) — API fields and merge rules  
