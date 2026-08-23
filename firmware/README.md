@@ -12,12 +12,22 @@ firmware/
     relay_gateway.ino    placeholder — heli_rc_blue
     hp_tk_tx/              serial angle -> BLE (ESP32A)
       hp_tk_tx.ino
+    gateway_ctrl/          BLE hub / gateway control
+      gateway_ctrl.ino
   actuator/
     hp_tk_rx/              BLE -> servo GPIO 13 (ESP32B)
       hp_tk_rx.ino
+    motor_ctrl/            motor / valve actuator
+      motor_ctrl.ino
   perception/
     lidar_node.ino       placeholder — uart / plane
+    soil_tem_hum_get/      soil temp & humidity sensor node
+      soil_tem_hum_get.ino
+    wifi_camera/           ESP32-CAM Wi-Fi preview stream
+      wifi_camera.ino
 ```
+
+Also: `scripts/esp32_cam_preview.py` — laptop preview client for `wifi_camera`.
 
 ## Sprinkler angle path (hp_tk)
 

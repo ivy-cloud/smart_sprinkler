@@ -157,8 +157,8 @@ voltage,current,flowRate,waterLevel,soilTemp,humidity
 |--------|------------|-----------------|---------------------------|
 | `heli_tx_blue/` | STM32A → BT server | **Field gateway**: sensor uplink | **Keep** → add WiFi option |
 | `heli_rc_blue/` | BT → STM32B serial | **Remote gateway** (only if no laptop) | **Optional** — skip if laptop is receiver |
-| `sashuiji/hp_tk_tx/` | Serial → BLE angle | **Command TX** from laptop | **Keep** for servo tests |
-| `sashuiji/hp_tk_rx/` | BLE → servo GPIO13 | **Nozzle / deflector actuator** | **Keep** → production servo node |
+| `hp_tk_tx/` | Serial → BLE angle | **Command TX** from laptop | **Keep** for servo tests |
+| `hp_tk_rx/` | BLE → servo GPIO13 | **Nozzle / deflector actuator** | **Keep** → production servo node |
 | `uart/` | Lidar sweep + width + pose | **Spatial**: block spray at edges | **Prototype** → vision or cleaned lidar service |
 | `plane/` | Lidar read test | Dev/test only | Archive or merge into `uart/` |
 | `sketch_nov26a/` | Early scan width | Dev/test only | Archive |
@@ -197,7 +197,8 @@ smart_sprinkler/
 └── pre_code/ESP32_TASK/               # Legacy firmware prototypes
     ├── heli_tx_blue/
     ├── heli_rc_blue/
-    ├── sashuiji/
+    ├── hp_tk_tx/
+    ├── hp_tk_rx/
     └── ...
 ```
 

@@ -493,8 +493,6 @@ python3 scripts/soil_serial_ml.py --port /dev/cu.usbmodem12201 --city "San Jose"
 python3 scripts/soil_serial_ml.py --port /dev/cu.usbmodem12201 --soil-only --city "San Jose"
 ```
 
-**Chinese serial labels (optional A/B):** `firmware/gateway/soil_node_rx_cn/soil_node_rx_cn.ino` — same BLE logic, `[SOIL]` in Chinese. For normal use and ML, prefer **`soil_node_rx`** (English).
-
 **USB sanity check:** if RX serial shows only ROM text, flash `firmware/gateway/serial_usb_test/serial_usb_test.ino` or enable **USB CDC On Boot**.
 
 ### B. No sensor yet — test weather policy

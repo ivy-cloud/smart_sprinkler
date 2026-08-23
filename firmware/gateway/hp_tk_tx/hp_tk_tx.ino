@@ -1,6 +1,5 @@
 /*
  * Angle relay (ESP32A): USB serial line (0-180) -> BLE write to actuator.
- * Source: pre_code/ESP32_TASK/sashuiji/hp_tk_tx/hp_tk_tx.ino
  *
  * Arduino libraries: BLE (built-in)
  * Scans for BLE name: ESP32_Servo_Controller (hp_tk_rx)

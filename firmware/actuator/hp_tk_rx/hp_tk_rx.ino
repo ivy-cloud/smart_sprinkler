@@ -1,6 +1,5 @@
 /*
  * Sprinkler actuator (ESP32B): BLE server -> servo angle 0-180 on GPIO 13.
- * Source: pre_code/ESP32_TASK/sashuiji/hp_tk_rx/hp_tk_rx.ino
  *
  * Arduino libraries: BLE (built-in), ESP32Servo
  * BLE name: ESP32_Servo_Controller
